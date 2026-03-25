@@ -10,6 +10,19 @@
 # MAGIC of truth for which fields are embedded (Rule 1), indexed (Rule 2), prompt-injected
 # MAGIC (Rule 3), or operational-only. This module imports the spec and uses it to drive
 # MAGIC `semantic_header()`, `build_chunk_docs()`, and `render_hit_for_prompt()`.
+# MAGIC
+# MAGIC **IDP → ADLS handoff (Option A)**
+# MAGIC
+# MAGIC Files are manually moved from IDP into ADLS using the following layout:
+# MAGIC ```
+# MAGIC nova-docs/                        ← ADLS file system
+# MAGIC ├── bronze/external/osfi/         ← raw HTML, PDF audit artifacts
+# MAGIC ├── bronze/internal/              ← raw Word, Excel, PDF, MD files
+# MAGIC ├── silver/canonical_json/        ← canonical JSON with full metadata
+# MAGIC │                                   (OSFI: placed by IDP; internal: written by ingestion notebook)
+# MAGIC ├── silver/metadata/              ← osfi_guidance_metadata.json (placed by IDP)
+# MAGIC └── gold/chunks/                  ← embedded chunk JSON (written by ingestion notebook)
+# MAGIC ```
 
 # COMMAND ----------
 # MAGIC %pip install -q azure-identity azure-storage-file-datalake azure-ai-documentintelligence \
@@ -238,6 +251,38 @@ def read_adls_bytes(path: str) -> bytes:
 def write_adls_json(path: str, payload: dict[str, Any]) -> None:
     data = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
     get_fs_client().get_file_client(path).upload_data(data, overwrite=True)
+
+
+# ---------------------------------------------------------------------------
+# ADLS path conventions (Option A layout)
+# ---------------------------------------------------------------------------
+BRONZE_EXTERNAL_PREFIX = "bronze/external/osfi/"
+BRONZE_INTERNAL_PREFIX = "bronze/internal/"
+SILVER_CANONICAL_PREFIX = "silver/canonical_json/"
+SILVER_METADATA_PREFIX = "silver/metadata/"
+GOLD_CHUNKS_PREFIX = "gold/chunks/"
+
+
+def list_adls_files(prefix: str, extension: Optional[str] = None) -> list[str]:
+    """List file paths under an ADLS prefix, optionally filtered by extension.
+
+    Args:
+        prefix: ADLS path prefix (e.g. "silver/canonical_json/")
+        extension: Optional extension filter including dot (e.g. ".json")
+
+    Returns:
+        List of full ADLS paths.
+    """
+    fs = get_fs_client()
+    paths: list[str] = []
+    try:
+        for item in fs.get_paths(path=prefix, recursive=True):
+            if extension and not item.name.lower().endswith(extension.lower()):
+                continue
+            paths.append(item.name)
+    except Exception:
+        pass
+    return paths
 
 
 def get_doc_intelligence_client() -> DocumentIntelligenceClient:

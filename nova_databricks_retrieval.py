@@ -152,6 +152,7 @@ def retrieve_from_pgvector(
         approval_status, business_owner, business_line, legal_entity,
         audience, regulator, doc_family_id, version_id, version_label,
         guideline_number, current_version_flag, sector,
+        supersedes_doc_id, superseded_by_doc_id,
         contains_definition, contains_formula, contains_deadline,
         contains_requirement, contains_parameter, contains_assignment,
         raw_path, canonical_path, sha256, parser_version, quality_score,
