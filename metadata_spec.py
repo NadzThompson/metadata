@@ -58,6 +58,13 @@ COMMON_FIELDS: List[MetadataField] = [
         example="osfi.lar.2025.chapter2.chapter",
     ),
     MetadataField(
+        name="source_type",
+        applies_to=["regulatory", "internal"],
+        description="Whether the document is regulatory or internal. Used to route Rule 3 prompt field selection.",
+        index=True,
+        example="regulatory",
+    ),
+    MetadataField(
         name="title",
         applies_to=["regulatory", "internal"],
         description="Human-readable title.",
@@ -306,6 +313,27 @@ REGULATORY_FIELDS: List[MetadataField] = [
         index=True,
         example="true",
     ),
+    MetadataField(
+        name="contains_deadline",
+        applies_to=["regulatory"],
+        description="Chunk contains a deadline or date commitment.",
+        index=True,
+        example="false",
+    ),
+    MetadataField(
+        name="contains_assignment",
+        applies_to=["regulatory"],
+        description="Chunk contains assignment/responsibility language.",
+        index=True,
+        example="false",
+    ),
+    MetadataField(
+        name="contains_parameter",
+        applies_to=["regulatory"],
+        description="Chunk contains a numeric parameter, threshold, or ratio.",
+        index=True,
+        example="true",
+    ),
 ]
 
 
@@ -478,13 +506,120 @@ INTERNAL_FIELDS: List[MetadataField] = [
         index=True,
         example="true",
     ),
+    MetadataField(
+        name="contains_parameter",
+        applies_to=["internal"],
+        description="Chunk contains a numeric parameter, threshold, or ratio.",
+        index=True,
+        example="false",
+    ),
+    MetadataField(
+        name="status",
+        applies_to=["internal"],
+        description="Document status (active, draft, under_review, superseded, archived).",
+        index=True,
+        prompt=True,
+        example="active",
+    ),
+]
+
+
+# ---------------------------------------------------------------------------
+# Unit-level structural fields – apply to both regulatory and internal
+# ---------------------------------------------------------------------------
+# These fields describe WHERE a unit sits in the document hierarchy and
+# WHAT ROLE it plays.  They are set per-CanonicalUnit (paragraph/section/
+# chapter) rather than per-document.  The Three Rules apply here too:
+#   - Embedded (Rule 1): structural_level and normative_weight change what
+#     the text MEANS to the embedding model (a "shall" in Chapter 1 Scope
+#     is semantically different from a "shall" in Appendix A Examples).
+#   - Index (Rule 2): section_number, depth, paragraph_role, is_appendix
+#     let retrieval filter/boost by structural position.
+#   - Prompt (Rule 3): normative_weight and paragraph_role help the LLM
+#     reason about authority ("this is a mandatory requirement" vs "this
+#     is an example").
+UNIT_STRUCTURAL_FIELDS: List[MetadataField] = [
+    MetadataField(
+        name="structural_level",
+        applies_to=["regulatory", "internal"],
+        description="Position in document hierarchy: chapter, section, subsection, paragraph, appendix.",
+        embedded=True,
+        index=True,
+        example="subsection",
+    ),
+    MetadataField(
+        name="section_number",
+        applies_to=["regulatory", "internal"],
+        description="Extracted section/paragraph numbering from headings (e.g. '3.2.1', 'A.4', 'ii').",
+        embedded=True,
+        index=True,
+        example="3.2.1",
+    ),
+    MetadataField(
+        name="depth",
+        applies_to=["regulatory", "internal"],
+        description="Heading depth: 0=root/chapter, 1=section, 2=subsection, 3+=paragraph-level.",
+        index=True,
+        example="2",
+    ),
+    MetadataField(
+        name="parent_section_id",
+        applies_to=["regulatory", "internal"],
+        description="Unit ID of the enclosing section heading, for parent-child navigation.",
+        index=True,
+        operational=True,
+        example="osfi.lar.2025.ch2::sec2.1",
+    ),
+    MetadataField(
+        name="is_appendix",
+        applies_to=["regulatory", "internal"],
+        description="Whether the unit sits inside an appendix section.",
+        index=True,
+        example="false",
+    ),
+    MetadataField(
+        name="normative_weight",
+        applies_to=["regulatory", "internal"],
+        description=(
+            "Deontic weight of the paragraph: mandatory (shall/must), "
+            "advisory (should), permissive (may), or informational (no modal)."
+        ),
+        embedded=True,
+        index=True,
+        prompt=True,
+        example="mandatory",
+    ),
+    MetadataField(
+        name="paragraph_role",
+        applies_to=["regulatory", "internal"],
+        description=(
+            "Semantic role of the unit: definition, procedure_step, example, "
+            "exception, scope_statement, cross_reference, table_note, "
+            "rationale, effective_clause, penalty_clause.  Embedded because "
+            "a paragraph that IS a definition means something fundamentally "
+            "different from one that IS an exception — the role changes the "
+            "semantic meaning the embedding model should capture."
+        ),
+        embedded=True,
+        index=True,
+        prompt=True,
+        example="procedure_step",
+    ),
+    MetadataField(
+        name="cross_references",
+        applies_to=["regulatory", "internal"],
+        description="List of section IDs or doc IDs referenced by this unit.",
+        index=True,
+        operational=True,
+        example="['osfi.lar.2025.ch3::sec1', 'Section 4.2']",
+    ),
 ]
 
 
 # ---------------------------------------------------------------------------
 # Aggregate field list
 # ---------------------------------------------------------------------------
-ALL_FIELDS: List[MetadataField] = COMMON_FIELDS + REGULATORY_FIELDS + INTERNAL_FIELDS
+ALL_FIELDS: List[MetadataField] = COMMON_FIELDS + REGULATORY_FIELDS + INTERNAL_FIELDS + UNIT_STRUCTURAL_FIELDS
 
 
 # ---------------------------------------------------------------------------
@@ -536,6 +671,19 @@ UNIT_LEVEL_INDEX_FLAGS: List[str] = [
     "contains_deadline",
     "contains_assignment",
     "contains_parameter",
+]
+
+# Structural fields that live on the unit, not the document.
+# These are resolved from CanonicalUnit in build_chunk_docs().
+UNIT_STRUCTURAL_INDEX_FIELDS: List[str] = [
+    "structural_level",
+    "section_number",
+    "depth",
+    "parent_section_id",
+    "is_appendix",
+    "normative_weight",
+    "paragraph_role",
+    "cross_references",
 ]
 
 

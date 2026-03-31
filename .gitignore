@@ -1,2 +1,13 @@
 __pycache__/
 *.pyc
+node_modules/
+package-lock.json
+package.json
+__pycache__/
+*.pyc
+create_workflow_doc.js
+create_integration_guide.js
+OCR_Metadata_code/
+ingest_embeddings_ADLS_OCR_DB_GitHub/WhatsApp*
+ingest_embeddings_ADLS_OCR_metadata/WhatsApp*
+retriever/WhatsApp*
